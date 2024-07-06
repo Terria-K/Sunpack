@@ -11,8 +11,7 @@ const string sunpackDirectory = ".sunpack-dep";
 
 if (args.Length == 0) 
 {
-    Console.WriteLine("add <git-repo> [branch] - \t\t Add a dependency to the project.");
-    Console.WriteLine("remove <git-repo> - \t\t Remove a dependency to the project.");
+    Help();
     return;
 }
 
@@ -43,7 +42,7 @@ string command = args[0];
 switch (command) 
 {
     case "add": {
-        if (args.Length < 1) 
+        if (args.Length < 2) 
         {
             Console.WriteLine("Invalid command arguments. Use help for more information.");
             return;
@@ -69,7 +68,7 @@ switch (command)
         break;
     }
     case "remove": {
-        if (args.Length < 1) 
+        if (args.Length < 2) 
         {
             Console.WriteLine("Invalid command arguments. Use help for more information.");
             return;
@@ -86,14 +85,79 @@ switch (command)
         RemoveDependency(dependency);
         break;
     }
+    case "update": {
+        if (args.Length < 2) 
+        {
+            Console.WriteLine("Invalid command arguments. Use help for more information.");
+            return;
+        }
+        string url = args[1];
+        if (url == "all") 
+        {
+            UpdateDependencies();
+            break;
+        }
+        
+        string name = url.Substring(url.LastIndexOf('/') + 1);
+        string repository = url.Substring(0, url.LastIndexOf('/'));
+
+        SunpackDependency dependency = new SunpackDependency() 
+        {
+            Name = name,
+            Repository = repository
+        };
+        UpdateDependency(dependency);
+        break;
+    }
     case "sync": {
+        if (project.Dependencies.Count == 0) 
+        {
+            Console.WriteLine("There is no dependencies to sync.");
+            return;
+        }
         SyncDependencies();
         CreateTarget();
         break;
     }
+    case "help": {
+        Help();
+        break;
+    }
 }
 
-void AddDependency(SunpackDependency sunpackDependency) 
+void Help() 
+{
+    Console.WriteLine("sync                    - Sync all dependencies that the sunpack.json currently has. Note that this does not update the dependency.");
+    Console.WriteLine("update <git-repo>|all   - Update the selected dependency, or all.");
+    Console.WriteLine("add <git-repo> [branch] - Add a dependency to the project.");
+    Console.WriteLine("remove <git-repo>       - Remove a dependency to the project.");
+    Console.WriteLine("help                    - Show a help message.");
+}
+
+void UpdateDependency(SunpackDependency dependency) 
+{
+    string outputDir = Path.Combine(sunpackDirectory, dependency.Name);
+
+    if (Directory.Exists(outputDir)) 
+    {
+        Directory.Delete(outputDir);
+    }
+
+    SyncDependency(dependency, true);
+}
+
+void UpdateDependencies() 
+{
+    foreach (var dep in project.Dependencies) 
+    {
+        UpdateDependency(dep);
+        Console.WriteLine(dep.Repository + "/" + dep.Name + " => UPDATED");
+    }
+
+    CreateTarget();
+}
+
+void AddDependency(SunpackDependency dependency) 
 {
     const string sunpackDirectory = ".sunpack-dep";
     if (!Directory.Exists(sunpackDirectory)) 
@@ -103,20 +167,20 @@ void AddDependency(SunpackDependency sunpackDependency)
 
     foreach (SunpackDependency dep in project.Dependencies) 
     {
-        if (dep.Name == sunpackDependency.Name) 
+        if (dep.Name == dependency.Name) 
         {
             Console.WriteLine("Dependency already existed in this project.");
             return;
         }
     }
 
-    Console.WriteLine($"Adding {sunpackDependency.Name} from {sunpackDependency.Repository} as a dependency...");
+    Console.WriteLine($"Adding {dependency.Name} from {dependency.Repository} as a dependency...");
 
-    if (!SyncDependency(sunpackDependency)) 
+    if (!SyncDependency(dependency, true)) 
     {
         return;
     }
-    SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(Path.Combine(sunpackDirectory, sunpackDependency.Name, "sunpack.json"));
+    SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(Path.Combine(sunpackDirectory, dependency.Name, "sunpack.json"));
 
     string selectedProj;
     if (depProj.Projects.Length > 1) 
@@ -143,17 +207,23 @@ void AddDependency(SunpackDependency sunpackDependency)
     {
         selectedProj = depProj.Projects[0];
     }
-    sunpackDependency.Project = selectedProj;
+    dependency.Project = selectedProj;
 
-    project.Dependencies.Add(sunpackDependency);
+    project.Dependencies.Add(dependency);
     JsonTextWriter.WriteToFile("sunpack.json", project.Serialize());
     CreateTarget();
 }
 
-bool SyncDependency(SunpackDependency dependency) 
+bool SyncDependency(SunpackDependency dependency, bool silent) 
 {
     string httpUrl = $"{dependency.Repository}/{dependency.Name}.git";
     string outputDir = Path.Combine(sunpackDirectory, dependency.Name);
+
+    if (Directory.Exists(outputDir)) 
+    {
+        Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => OK");
+        return true;
+    }
 
     List<string> args = ["clone", httpUrl, outputDir, "--recursive"];
     if (!string.IsNullOrEmpty(dependency.Branch)) 
@@ -174,8 +244,10 @@ bool SyncDependency(SunpackDependency dependency)
     {
         Console.WriteLine($"{dependency.Name} from {dependency.Repository} does not contains sunpack.json. Please ensure that the project has this file.");
         Directory.Delete(outputDir, true);
+        Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => FAILED");
         return false;
     }
+    Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => Added");
     return true;
 }
 
@@ -183,11 +255,11 @@ void SyncDependencies()
 {
     foreach (var dep in project.Dependencies) 
     {
-        SyncDependency(dep);
+        SyncDependency(dep, false);
     }
 }
 
-void RemoveDependency(SunpackDependency sunpackDependency) 
+void RemoveDependency(SunpackDependency dependency) 
 {
     if (!Directory.Exists(sunpackDirectory)) 
     {
@@ -199,7 +271,7 @@ void RemoveDependency(SunpackDependency sunpackDependency)
 
     foreach (SunpackDependency dep in project.Dependencies)
     {
-        if (dep.Name != sunpackDependency.Name)
+        if (dep.Name != dependency.Name)
         {
             continue;
         }
@@ -225,7 +297,7 @@ void RemoveDependency(SunpackDependency sunpackDependency)
         project.Dependencies.Remove(dep);
     }
 
-    Console.WriteLine($"Dependency {sunpackDependency.Name} from {sunpackDependency.Repository} has been removed!");
+    Console.WriteLine($"Dependency {dependency.Name} from {dependency.Repository} has been removed!");
     JsonTextWriter.WriteToFile("sunpack.json", project.Serialize());
     CreateTarget();
 }

@@ -37,6 +37,16 @@ else
     project = JsonConvert.DeserializeFromFile<SunpackProject>("sunpack.json");
 }
 
+JsonObject slock;
+if (!File.Exists("sun.lock")) 
+{
+    slock = new JsonObject();
+}
+else 
+{
+    slock = JsonTextReader.FromFile("sun.lock").AsJsonObject;
+}
+
 string command = args[0];
 
 switch (command) 
@@ -113,7 +123,7 @@ switch (command)
         if (project.Dependencies.Count == 0) 
         {
             Console.WriteLine("There is no dependencies to sync.");
-            return;
+            break;
         }
         SyncDependencies();
         CreateTarget();
@@ -123,6 +133,15 @@ switch (command)
         Help();
         break;
     }
+}
+
+JsonTextWriter.WriteToFile("sun.lock", slock);
+
+
+void LockDependency(SunpackDependency dependency, string rev) 
+{
+    string url = dependency.Repository + "/" + dependency.Name;
+    slock[url] = rev;
 }
 
 void Help() 
@@ -140,10 +159,29 @@ void UpdateDependency(SunpackDependency dependency)
 
     if (Directory.Exists(outputDir)) 
     {
-        Directory.Delete(outputDir);
+        RunGit("fetch", ["--depth", "999999", "--progress", outputDir]);
+        string rev = RunGitOnDep(outputDir, "rev-parse", ["HEAD"]);
+        string url = dependency.Repository + "/" + dependency.Name;
+        string revCompare = slock[url];
+        if (rev == revCompare) 
+        {
+            Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => Up to date.");
+            return;
+        }
+        Directory.Delete(outputDir, true);
     }
 
-    SyncDependency(dependency, true);
+    foreach (SunpackDependency dep in project.Dependencies) 
+    {
+        if (dep.Name == dependency.Name) 
+        {
+            dependency.Branch = dep.Branch;
+            SyncDependency(dependency, true);
+            Console.WriteLine(dep.Repository + "/" + dep.Name + " => UPDATED");
+            return;
+        }
+    }
+    Console.WriteLine($"There is no {dependency.Name} from {dependency.Repository} in this project.");
 }
 
 void UpdateDependencies() 
@@ -151,7 +189,6 @@ void UpdateDependencies()
     foreach (var dep in project.Dependencies) 
     {
         UpdateDependency(dep);
-        Console.WriteLine(dep.Repository + "/" + dep.Name + " => UPDATED");
     }
 
     CreateTarget();
@@ -225,16 +262,14 @@ bool SyncDependency(SunpackDependency dependency, bool silent)
         return true;
     }
 
-    List<string> args = ["clone", httpUrl, outputDir, "--recursive"];
+    List<string> args = [httpUrl, outputDir, "--recursive"];
     if (!string.IsNullOrEmpty(dependency.Branch)) 
     {
         args.Add("--branch");
         args.Add(dependency.Branch);
     }
 
-    ProcessStartInfo startInfo = new ProcessStartInfo("git", args);
-    Process process = Process.Start(startInfo);
-    process.WaitForExit();
+    RunGit("clone", args);
 
     Console.WriteLine("Checking if it's a valid sunpack project.");
 
@@ -247,6 +282,8 @@ bool SyncDependency(SunpackDependency dependency, bool silent)
         Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => FAILED");
         return false;
     }
+    string rev = RunGitOnDep(outputDir, "rev-parse", ["HEAD"]);
+    LockDependency(dependency, rev);
     Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => Added");
     return true;
 }
@@ -340,4 +377,30 @@ void CreateTarget()
 
 
     document.Save("Sunpack.targets");
+}
+
+
+string RunGit(string command, List<string> arguments) 
+{
+    List<string> commandArgs = [command];
+    commandArgs.AddRange(arguments);
+    ProcessStartInfo startInfo = new ProcessStartInfo("git", commandArgs);
+    startInfo.RedirectStandardOutput = true;
+    Process process = Process.Start(startInfo);
+    process.WaitForExit();
+
+    return process.StandardOutput.ReadToEnd().Trim();
+}
+
+string RunGitOnDep(string depPath, string command, List<string> arguments) 
+{
+    List<string> commandArgs = [command];
+    commandArgs.AddRange(arguments);
+    ProcessStartInfo startInfo = new ProcessStartInfo("git", commandArgs);
+    startInfo.RedirectStandardOutput = true;
+    startInfo.WorkingDirectory = depPath;
+    Process process = Process.Start(startInfo);
+    process.WaitForExit();
+
+    return process.StandardOutput.ReadToEnd().Trim();
 }

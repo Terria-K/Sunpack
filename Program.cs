@@ -125,7 +125,7 @@ switch (command)
             Console.WriteLine("There is no dependencies to sync.");
             break;
         }
-        SyncDependencies();
+        SyncDependencies(project);
         CreateTarget();
         break;
     }
@@ -176,7 +176,7 @@ void UpdateDependency(SunpackDependency dependency)
         if (dep.Name == dependency.Name) 
         {
             dependency.Branch = dep.Branch;
-            SyncDependency(dependency, true);
+            SyncDependency(project, dependency, true);
             Console.WriteLine(dep.Repository + "/" + dep.Name + " => UPDATED");
             return;
         }
@@ -213,7 +213,7 @@ void AddDependency(SunpackDependency dependency)
 
     Console.WriteLine($"Adding {dependency.Name} from {dependency.Repository} as a dependency...");
 
-    if (!SyncDependency(dependency, true)) 
+    if (!SyncDependency(project, dependency, true)) 
     {
         return;
     }
@@ -256,7 +256,7 @@ void AddDependency(SunpackDependency dependency)
     CreateTarget();
 }
 
-bool SyncDependency(SunpackDependency dependency, bool silent) 
+bool SyncDependency(SunpackProject project, SunpackDependency dependency, bool silent) 
 {
     string httpUrl = $"{dependency.Repository}/{dependency.Name}.git";
     string outputDir = Path.Combine(sunpackDirectory, dependency.Name);
@@ -298,14 +298,26 @@ bool SyncDependency(SunpackDependency dependency, bool silent)
     string rev = RunGitOnDep(outputDir, "rev-parse", ["HEAD"]);
     LockDependency(dependency, rev);
     Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => Added");
+
+    string file = Path.Combine(sunpackDirectory, dependency.Name, "sunpack.json");
+    if (!File.Exists(file)) 
+    {
+        file = project.ResolvePackages[dependency.Name];
+    }
+    SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(file);
+
+    string oldCurrDir = Environment.CurrentDirectory;
+    Environment.CurrentDirectory = outputDir;
+    SyncDependencies(depProj);
+    Environment.CurrentDirectory = oldCurrDir;
     return true;
 }
 
-void SyncDependencies() 
+void SyncDependencies(SunpackProject project) 
 {
     foreach (var dep in project.Dependencies) 
     {
-        SyncDependency(dep, false);
+        SyncDependency(project, dep, false);
     }
 }
 

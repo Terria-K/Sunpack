@@ -217,7 +217,12 @@ void AddDependency(SunpackDependency dependency)
     {
         return;
     }
-    SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(Path.Combine(sunpackDirectory, dependency.Name, "sunpack.json"));
+    string file = Path.Combine(sunpackDirectory, dependency.Name, "sunpack.json");
+    if (!File.Exists(file)) 
+    {
+        file = project.ResolvePackages[dependency.Name];
+    }
+    SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(file);
 
     string selectedProj;
     if (depProj.Projects.Length > 1) 
@@ -277,11 +282,19 @@ bool SyncDependency(SunpackDependency dependency, bool silent)
 
     if (!files.Contains(Path.Combine(outputDir, "sunpack.json"))) 
     {
-        Console.WriteLine($"{dependency.Name} from {dependency.Repository} does not contains sunpack.json. Please ensure that the project has this file.");
-        Directory.Delete(outputDir, true);
-        Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => FAILED");
-        return false;
+        if (project.ResolvePackages.ContainsKey(dependency.Name)) 
+        {
+            goto RESOLVE;
+        }
+        else 
+        {
+            Console.WriteLine($"{dependency.Name} from {dependency.Repository} does not contains sunpack.json. Please ensure that the project has this file, or resolve the project.");
+            Directory.Delete(outputDir, true);
+            Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => FAILED");
+            return false;
+        }
     }
+    RESOLVE:
     string rev = RunGitOnDep(outputDir, "rev-parse", ["HEAD"]);
     LockDependency(dependency, rev);
     Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => Added");

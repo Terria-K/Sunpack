@@ -239,6 +239,13 @@ void CreateTarget()
     XmlElement xmlProject = document.CreateElement("Project");
     document.AppendChild(xmlProject);
 
+    XmlElement propGroup = document.CreateElement("PropertyGroup");
+    xmlProject.AppendChild(propGroup);
+
+    XmlElement sunpackDir = document.CreateElement("SunpackDir");
+    sunpackDir.InnerText = "$(MSBuildThisFileDirectory)";
+    propGroup.AppendChild(sunpackDir);
+
     // Create the references
     XmlElement referenceItemGroup = document.CreateElement("ItemGroup");
     xmlProject.AppendChild(referenceItemGroup);
@@ -246,15 +253,16 @@ void CreateTarget()
     XmlElement excludeItemGroup = document.CreateElement("ItemGroup");
     xmlProject.AppendChild(excludeItemGroup);
 
+
     foreach (SunpackDependency dep in project.Dependencies) 
     {
         XmlElement projectReference = document.CreateElement("ProjectReference");
         string projectPath = dep.Project;
-        projectReference.SetAttribute("Include", Path.Combine(sunpackDirectory, dep.Name, projectPath));
+        projectReference.SetAttribute("Include", Path.Combine("$(SunpackDir)" + sunpackDirectory, dep.Name, projectPath));
         referenceItemGroup.AppendChild(projectReference);
 
         XmlElement compile = document.CreateElement("Compile");
-        compile.SetAttribute("Remove", Path.Combine(sunpackDirectory, dep.Name, "**", "*"));
+        compile.SetAttribute("Remove", Path.Combine("$(SunpackDir)" + sunpackDirectory, dep.Name, "**", "*"));
         excludeItemGroup.AppendChild(compile);
     }
 

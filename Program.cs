@@ -117,6 +117,7 @@ switch (command)
             Repository = repository
         };
         UpdateDependency(dependency);
+        CreateTarget();
         break;
     }
     case "sync": {
@@ -225,30 +226,48 @@ void AddDependency(SunpackDependency dependency)
     SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(file);
 
     string selectedProj;
-    if (depProj.Projects.Length > 1) 
+    try 
     {
-        int num = 0;
-        foreach (var depP in depProj.Projects) 
+        if (depProj.Projects.Length > 1) 
         {
-            Console.WriteLine($"[{num}] {depP}");
-            num++;
-        }
-        Console.WriteLine("Please select the project you want to choose from this package (default = 0): ");
-        string selected = Console.ReadLine().Trim();
-        if (int.TryParse(selected, out int s)) 
-        {
-            selectedProj = depProj.Projects[s];
+            int num = 0;
+            foreach (var depP in depProj.Projects) 
+            {
+                Console.WriteLine($"[{num}] {depP}");
+                num++;
+            }
+            Console.WriteLine("Please select the project you want to choose from this package (default = 0): ");
+            while (true) 
+            {
+                string selected = Console.ReadLine().Trim();
+                if (int.TryParse(selected, out int s) && s < depProj.Projects.Length)
+                {
+                    selectedProj = depProj.Projects[s];
+                    break;
+                }
+                Console.WriteLine("Invalid selection, please try again.");
+            }
         }
         else 
         {
-            Console.WriteLine("Invalid, 0 is selected by default. Just change it on sunpack.json later.");
             selectedProj = depProj.Projects[0];
         }
     }
-    else 
+    catch (IndexOutOfRangeException) 
     {
-        selectedProj = depProj.Projects[0];
+        Console.WriteLine("No projects exists in this project, please specify the path of the project.");
+        while (true) 
+        {
+            string path = Console.ReadLine();
+            if (File.Exists(path)) 
+            {
+                selectedProj = path;
+                break;
+            }
+            Console.WriteLine("Project not found, please try again.");
+        }
     }
+
     dependency.Project = selectedProj;
 
     project.Dependencies.Add(dependency);
@@ -328,7 +347,7 @@ void RemoveDependency(SunpackDependency dependency)
         Directory.CreateDirectory(sunpackDirectory);
     }
 
-    bool deletedSuccess = true;
+    bool deletedSuccess = false;
     List<SunpackDependency> tobeRemoved = new List<SunpackDependency>();
 
     foreach (SunpackDependency dep in project.Dependencies)
@@ -337,6 +356,8 @@ void RemoveDependency(SunpackDependency dependency)
         {
             continue;
         }
+
+        deletedSuccess = true;
 
         string path = Path.Combine(sunpackDirectory, dep.Name);
 

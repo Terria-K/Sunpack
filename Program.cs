@@ -15,14 +15,6 @@ if (args.Length == 0)
     return;
 }
 
-SunpackProject project;
-if (!File.Exists("sunpack.lua")) 
-{
-    Console.WriteLine("Project does not exists here, use \"sunpack init\" first.");
-    return;
-}
-
-project = SunpackProject.LoadProject("sunpack.lua");
 
 JsonObject slock;
 if (!File.Exists("sun.lock")) 
@@ -36,29 +28,42 @@ else
 
 string command = args[0];
 
+SunpackProject project;
+
+if (command == "init") 
+{
+    if (File.Exists("sunpack.lua")) 
+    {
+        Console.WriteLine("Please enter a name of your program: ");
+        string name = Console.ReadLine().Trim();
+        if (string.IsNullOrEmpty(name)) 
+        {
+            Console.WriteLine("Empty name is not allowed");
+            return;
+        }
+        project = new SunpackProject() 
+        {
+            Name = name,
+            Version = "0.1.0"
+        };
+        SunpackProject.CreateProject(name);
+        return;
+    }
+    Console.WriteLine("Project already exists here.");
+    return;
+}
+
+
+if (!File.Exists("sunpack.lua")) 
+{
+    Console.WriteLine("Project does not exists here, use \"sunpack init\" first.");
+    return;
+}
+
+project = SunpackProject.LoadProject("sunpack.lua");
+
 switch (command) 
 {
-    case "init": {
-        if (File.Exists("sunpack.lua")) 
-        {
-            Console.WriteLine("Please enter a name of your program: ");
-            string name = Console.ReadLine().Trim();
-            if (string.IsNullOrEmpty(name)) 
-            {
-                Console.WriteLine("Empty name is not allowed");
-                return;
-            }
-            project = new SunpackProject() 
-            {
-                Name = name,
-                Version = "0.1.0"
-            };
-            SunpackProject.CreateProject(name);
-            break;
-        }
-        Console.WriteLine("Project already exists here.");
-        break;
-    }
     case "add": {
         if (args.Length < 2) 
         {

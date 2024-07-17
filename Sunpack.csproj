@@ -10,6 +10,13 @@
   <ItemGroup>
     <PackageReference Include="TeuJson" Version="3.2.0" />
     <PackageReference Include="TeuJson.Generator" Version="3.2.0" />
+    <PackageReference Include="NLua" Version="1.7.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+		<EmbeddedResource Include="init.lua">
+			<LogicalName>init.lua</LogicalName>
+		</EmbeddedResource>
   </ItemGroup>
 
 </Project>

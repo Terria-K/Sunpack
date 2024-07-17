@@ -36,6 +36,7 @@ public class SunpackProject : IDeserialize, ISerialize
         foreach (string obj in projects.Values) 
         {
             project.Projects[i] = obj;
+            i++;
         }
 
         foreach (string o in deps.Keys) 

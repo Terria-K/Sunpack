@@ -32,7 +32,7 @@ SunpackProject project;
 
 if (command == "init") 
 {
-    if (File.Exists("sunpack.lua")) 
+    if (!File.Exists("sunpack.lua")) 
     {
         Console.WriteLine("Please enter a name of your program: ");
         string name = Console.ReadLine().Trim();

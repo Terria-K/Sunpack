@@ -2,9 +2,7 @@
 cd "../bin/Release/net8.0/linux-x64/publish"
 mkdir ~/.local/sunpack
 mkdir ~/.local/sunpack/bin
-mkdir ~/.local/sunpack/lib
 sudo cp ./sunpack ~/.local/sunpack/bin
-sudo cp ./liblua54.so ~/.local/sunpack/lib
+sudo cp ./liblua54.so ~/.local/sunpack/bin
 
 sudo ln -s ~/.local/sunpack/bin/sunpack /usr/local/bin/sunpack
-sudo ln -s ~/.local/sunpack/lib/liblua54.so /usr/local/lib/liblua54.so

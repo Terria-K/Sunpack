@@ -15,27 +15,6 @@ if (args.Length == 0)
     return;
 }
 
-SunpackProject project;
-if (!File.Exists("sunpack.json")) 
-{
-    Console.WriteLine("Please enter a name of your program: ");
-    string name = Console.ReadLine().Trim();
-    if (string.IsNullOrEmpty(name)) 
-    {
-        Console.WriteLine("Empty name is not allowed");
-        return;
-    }
-    project = new SunpackProject() 
-    {
-        Name = name,
-        Version = "0.1.0"
-    };
-    JsonConvert.SerializeToFile(project, "sunpack.json");
-}
-else 
-{
-    project = JsonConvert.DeserializeFromFile<SunpackProject>("sunpack.json");
-}
 
 JsonObject slock;
 if (!File.Exists("sun.lock")) 
@@ -48,6 +27,40 @@ else
 }
 
 string command = args[0];
+
+SunpackProject project;
+
+if (command == "init") 
+{
+    if (!File.Exists("sunpack.lua")) 
+    {
+        Console.WriteLine("Please enter a name of your program: ");
+        string name = Console.ReadLine().Trim();
+        if (string.IsNullOrEmpty(name)) 
+        {
+            Console.WriteLine("Empty name is not allowed");
+            return;
+        }
+        project = new SunpackProject() 
+        {
+            Name = name,
+            Version = "0.1.0"
+        };
+        SunpackProject.CreateProject(name);
+        return;
+    }
+    Console.WriteLine("Project already exists here.");
+    return;
+}
+
+
+if (!File.Exists("sunpack.lua")) 
+{
+    Console.WriteLine("Project does not exists here, use \"sunpack init\" first.");
+    return;
+}
+
+project = SunpackProject.LoadProject("sunpack.lua");
 
 switch (command) 
 {
@@ -147,7 +160,7 @@ void LockDependency(SunpackDependency dependency, string rev)
 
 void Help() 
 {
-    Console.WriteLine("sync                    - Sync all dependencies that the sunpack.json currently has. Note that this does not update the dependency.");
+    Console.WriteLine("sync                    - Sync all dependencies that the sunpack.lua currently has. Note that this does not update the dependency.");
     Console.WriteLine("update <git-repo>|all   - Update the selected dependency, or all.");
     Console.WriteLine("add <git-repo> [branch] - Add a dependency to the project.");
     Console.WriteLine("remove <git-repo>       - Remove a dependency to the project.");
@@ -160,8 +173,8 @@ void UpdateDependency(SunpackDependency dependency)
 
     if (Directory.Exists(outputDir)) 
     {
-        RunGit("fetch", ["--depth", "999999", "--progress", outputDir]);
-        string rev = RunGitOnDep(outputDir, "rev-parse", ["HEAD"]);
+        RunGitOnDep(outputDir, "fetch", ["--depth", "999999", "--progress"]);
+        string rev = RunGitOnDep(outputDir, "rev-parse", ["FETCH_HEAD"]);
         string url = dependency.Repository + "/" + dependency.Name;
         string revCompare = slock[url];
         if (rev == revCompare) 
@@ -218,12 +231,12 @@ void AddDependency(SunpackDependency dependency)
     {
         return;
     }
-    string file = Path.Combine(sunpackDirectory, dependency.Name, "sunpack.json");
+    string file = Path.Combine(sunpackDirectory, dependency.Name, "sunpack.lua");
     if (!File.Exists(file)) 
     {
         file = project.ResolvePackages[dependency.Name];
     }
-    SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(file);
+    SunpackProject depProj = SunpackProject.LoadProject(file);
 
     string selectedProj;
     try 
@@ -256,22 +269,15 @@ void AddDependency(SunpackDependency dependency)
     catch (IndexOutOfRangeException) 
     {
         Console.WriteLine("No projects exists in this project, please specify the path of the project.");
-        while (true) 
-        {
-            string path = Console.ReadLine();
-            if (File.Exists(path)) 
-            {
-                selectedProj = path;
-                break;
-            }
-            Console.WriteLine("Project not found, please try again.");
-        }
+
+        string path = Console.ReadLine();
+        selectedProj = path;
     }
 
     dependency.Project = selectedProj;
 
     project.Dependencies.Add(dependency);
-    JsonTextWriter.WriteToFile("sunpack.json", project.Serialize());
+    project.Write();
     CreateTarget();
 }
 
@@ -299,7 +305,7 @@ bool SyncDependency(SunpackProject project, SunpackDependency dependency, bool s
 
     HashSet<string> files = Directory.GetFiles(outputDir).ToHashSet();
 
-    if (!files.Contains(Path.Combine(outputDir, "sunpack.json"))) 
+    if (!files.Contains(Path.Combine(outputDir, "sunpack.lua"))) 
     {
         if (project.ResolvePackages.ContainsKey(dependency.Name)) 
         {
@@ -307,7 +313,7 @@ bool SyncDependency(SunpackProject project, SunpackDependency dependency, bool s
         }
         else 
         {
-            Console.WriteLine($"{dependency.Name} from {dependency.Repository} does not contains sunpack.json. Please ensure that the project has this file, or resolve the project.");
+            Console.WriteLine($"{dependency.Name} from {dependency.Repository} does not contains sunpack.lua. Please ensure that the project has this file, or resolve the project.");
             Directory.Delete(outputDir, true);
             Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => FAILED");
             return false;
@@ -318,12 +324,13 @@ bool SyncDependency(SunpackProject project, SunpackDependency dependency, bool s
     LockDependency(dependency, rev);
     Console.WriteLine(dependency.Repository + "/" + dependency.Name + " => Added");
 
-    string file = Path.Combine(sunpackDirectory, dependency.Name, "sunpack.json");
+    string file = Path.Combine(sunpackDirectory, dependency.Name, "sunpack.lua");
     if (!File.Exists(file)) 
     {
         file = project.ResolvePackages[dependency.Name];
     }
-    SunpackProject depProj = JsonConvert.DeserializeFromFile<SunpackProject>(file);
+
+    SunpackProject depProj = SunpackProject.LoadProject(file);
 
     string oldCurrDir = Environment.CurrentDirectory;
     Environment.CurrentDirectory = outputDir;
@@ -381,7 +388,7 @@ void RemoveDependency(SunpackDependency dependency)
     }
 
     Console.WriteLine($"Dependency {dependency.Name} from {dependency.Repository} has been removed!");
-    JsonTextWriter.WriteToFile("sunpack.json", project.Serialize());
+    project.Write();
     CreateTarget();
 }
 

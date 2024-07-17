@@ -7,3 +7,4 @@ sudo cp ./sunpack ~/.local/sunpack/bin
 sudo cp ./liblua54.so ~/.local/sunpack/lib
 
 sudo ln -s ~/.local/sunpack/bin/sunpack /usr/local/bin/sunpack
+sudo ln -s ~/.local/sunpack/lib/liblua54.so /usr/local/lib/liblua54.so

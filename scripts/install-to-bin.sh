@@ -1,4 +1,4 @@
-# dotnet publish ../Sunpack.csproj -c Release --self-contained
+dotnet publish ../Sunpack.csproj -c Release --self-contained
 cd "../bin/Release/net8.0/linux-x64/publish"
 mkdir ~/.local/sunpack
 mkdir ~/.local/sunpack/bin
